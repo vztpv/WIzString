@@ -270,22 +270,23 @@ namespace wiz {
 		static void GetMultiLine(FILE* file, WizString* strVec, const int lineNum) {
 			int real_line_num = -1;
 			const int line_max = lineNum;
-			const int num = 1; // 102400; // -ToDo!
+			const int num = 102400;
 			StringBuilder builder(num * 10, "", 0);
 			int real_count;
-			int find_idx; // find \n
 			int i;
 			int size = 0;
 			const char* builder_cstr = NULL;
 			WizString temp;
 			int temp2;
 			const char* temp3 = NULL;
-			WizString temp4("\n");
 			int chk = 1;
 			int offset = 0; // for backward
+			int temp5;
+			int fpos = ftell(file);
 
 			i = 0;
 			temp2 = -1;
+			temp5 = -1;
 
 			while (true) {
 				if (chk) {
@@ -300,10 +301,12 @@ namespace wiz {
 
 				builder_cstr = builder.Str();
 				size = builder.Size();
-				find_idx = -1;
+
 				for (; i < line_max; ++i) {
 					int chk_find = WizString::find(builder_cstr, '\n', temp2, size);
 					
+					temp5 = chk_find;
+
 					if (chk_find != -1) {
 						temp2 = chk_find;
 					}
@@ -314,36 +317,28 @@ namespace wiz {
 				}
 
 				// ... enterkey ... 
-				// ... find_idx ...
+				// ... find_idx ... 
 				if (line_max == i || real_count != num) {
-					int state = 0;
 					real_line_num = i;
 
-					if (find_idx == -1) {
-						find_idx = builder.Size() - 1;
-						state = 1;
+					if (temp5 == -1) {
+						temp2 = builder.Size() - 1;
 					}
 
-					offset = builder.Size() - 1 - (find_idx + 1) + 1;
+					builder.Divide(temp2 + 1);
 
-					builder.Divide(find_idx + 1);
-
-					temp3 = builder.Str(&size);
-					temp.init(temp3, size);
-
-					if (0 == state) {
-						builder.LeftShift(find_idx + 2);
-					}
-					else {
-						builder.LeftShift(find_idx + 1);
-					}
+					temp3 = builder.Str();
+					temp.init(temp3, strlen(temp3));
+	
+					builder.LeftShift(temp2 + 1);
 				}
 				else {
 					continue;
 				}
 
 				if (line_max == i) {
-					fseek(file, -offset, SEEK_CUR);
+					fpos = fpos + temp2 + 1 + i;
+					fseek(file, fpos, SEEK_SET);
 				}
 				else {
 					//

@@ -13,15 +13,12 @@ int main(void)
 	FILE* file = fopen("test.txt", "rt");
 
 	for (int i = 0; i < 10; ++i) {
-		if (!feof(file)) {
+		if (!feof(file)) 
+		{
 			std::cout << i << std::endl;
-			wiz::WizString::GetMultiLine(file, &test, 3);
+			wiz::WizString::GetMultiLine(file, &test, 1);
 			std::cout << "//" << test.CStr() << "//" << std::endl;
 		}
-		else {
-			break;
-		}
-		
 	}
 
 	fclose(file);
