@@ -31,12 +31,46 @@ public:
 	}
 	StringBuilder(const StringBuilder&) = delete;
 	StringBuilder(StringBuilder&&) = delete;
-	StringBuilder& operator=(const StringBuilder&) = delete;
-	StringBuilder& operator=(StringBuilder&&) = delete;
+	StringBuilder& operator=(const StringBuilder& other)
+	{
+		if (buffer_first != nullptr) {
+			free(buffer_first);
+		}
+		len = other.len;
+		capacity = other.capacity;
+		buffer_first = (char*)malloc(sizeof(char)*(len + 1));
+		buffer = other.buffer;
+
+		for (int i = 0; i <= len; ++i) {
+			buffer_first[i] = other.buffer_first[i];
+		}
+
+		return *this;
+	}
+	StringBuilder& operator=(StringBuilder&& other)
+	{
+		buffer_first = other.buffer_first;
+		buffer = other.buffer;
+		len = other.len;
+		capacity = other.capacity;
+
+		other.buffer_first = nullptr;
+		other.buffer = nullptr;
+		other.len = 0;
+
+		return *this;
+	}
 
 	virtual ~StringBuilder()
 	{
 		free(buffer_first);
+	}
+
+	StringBuilder& AppendChar(const char ch)
+	{
+		char temp[2]; 
+		temp[0] = ch; temp[1] = '\0';
+		return Append(temp, 1);
 	}
 
 	StringBuilder& Append(const char* cstr, const int len)
@@ -73,11 +107,14 @@ public:
 		buffer[idx] = '\0';
 		return buffer;
 	}
-	const char* Str(int* size = nullptr) {
+	const char* Str(int* size = nullptr) const {
 		if (size) { *size = len; }
 		return buffer;
 	}
-
+	char* Str(int* size = nullptr) {
+		if (size) { *size = len; }
+		return buffer;
+	}
 	void Clear()
 	{
 		len = 0;

@@ -8,6 +8,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <cmath>
+#include <string>
 
 
 #define WIZ_STRING_BUFFER_SIZE 5
@@ -65,13 +67,28 @@ namespace wiz {
 		}
 	public:
 		explicit WizString() {
-			buffer[0] = '\0';
-			len = 0;
-			moved = false;
-			str = nullptr;
+			init("", 0);
 		}
 		explicit WizString(const char* cstr) {
 			init(cstr, strlen(cstr));
+		}
+		WizString(const WizString& other)
+		{
+			init("", 0);
+			AssignNoMove(other);
+		}
+		WizString(WizString&& other)
+		{
+			len = other.len;
+			other.len = 0;
+			moved = other.moved;
+			other.moved = true;
+			str = other.str;
+			other.str = "";
+
+			for (int i = 0; i < WIZ_STRING_BUFFER_SIZE; ++i) {
+				buffer[i] = other.buffer[i];
+			}
 		}
 
 		virtual ~WizString()
@@ -79,11 +96,9 @@ namespace wiz {
 			remove();
 		}
 	private:
-		// copy constructor, assignment -> DON`T
-		WizString(const WizString&) = delete;
+		// assignment -> DON`T
 		void operator=(const WizString&) = delete;
-		// move constructor, move assignment -> DON`T
-		WizString(WizString&&) = delete;
+		// move assignment -> DON`T
 		void operator=(WizString&&) = delete;
 	public:
 		bool AssignWithMove(WizString& str) {
@@ -142,7 +157,7 @@ namespace wiz {
 		// +
 		// + with const char*
 		// + with const char*, friend
-/*		friend WizString operator+(const WizString& str1, const WizString& str2)
+		friend WizString operator+(const WizString& str1, const WizString& str2)
 		{
 			WizString temp;
 
@@ -198,7 +213,7 @@ namespace wiz {
 			temp.AssignNoMove(str + cstr);
 			return temp;
 		}
-		*/
+		
 		// +=
 		void operator+=(const WizString& str)
 		{
@@ -238,11 +253,41 @@ namespace wiz {
 			this->AssignWithMove(temp);
 		}
 		// ==
+		bool operator==(const WizString& str)
+		{
+			if (this->len != str.len) { return 0; }
+			return 0 == strcmp(this->CStr(), str.CStr());
+		}
 		// == with const char*
+		bool operator==(const char* str)
+		{
+			if (this->len != strlen(str)) { return 0; }
+			return 0 == strcmp(this->CStr(), str);
+		}
 		// == with const char*, friend
+		friend bool operator==(const char* str, const WizString& wizStr)
+		{
+			if (wizStr.len != strlen(str)) { return 0; }
+			return 0 == strcmp(wizStr.CStr(), str);
+		}
 		// !=
+		bool operator!=(const WizString& str)
+		{
+			if (this->len == str.len) { return 0; }
+			return 0 != strcmp(this->CStr(), str.CStr());
+		}
 		// != with const char*
+		bool operator!=(const char* str)
+		{
+			if (this->len == strlen(str)) { return 0; }
+			return 0 != strcmp(this->CStr(), str);
+		}
 		// != with const char*, friend
+		friend bool operator!=(const char* str, const WizString& wizStr)
+		{
+			if (wizStr.len == strlen(str)) { return 0; }
+			return 0 != strcmp(wizStr.CStr(), str);
+		}
 	private:
 		static int find(const char* cstr, char x, int before, int n)
 		{
@@ -350,26 +395,55 @@ namespace wiz {
 			}
 		}
 
-		template <typename INTEGER>
-		static INTEGER ToInteger(const WizString& str)
+		static long long ToInteger(const WizString& str)
 		{
-
+			return atoll(str.CStr());
 		}
-		template <typename NUMBER>
-		static NUMBER ToNumber(const WizString& str)
+		static long double ToNumber(const WizString& str)
 		{
-
+			return strtold(str.CStr(), nullptr);
 		}
 
-		template <typename INTEGER>
-		static bool ToStringFromInteger(INTEGER val, WizString* str)
+		static bool ToString(long long x, WizString* str)
 		{
+			StringBuilder temp(1024, "", 0);
+			int size = 1024;
 
+			while (1) {
+				int chk = snprintf(temp.Str(), size, "%lld", x);
+				if (!(0 <= chk && chk < size)) {
+					size = size * 2;
+					temp = StringBuilder(size, "", 0);
+				}
+				else {
+					temp.SetLength(chk);
+					break;
+				}
+			}
+
+			str->Assign(temp.Str());
+			return true;
 		}
-		template <typename NUMBER>
-		static bool ToStringFromNumber(NUMBER val, WizString* str)
+		static bool ToString(long double x, WizString* str)
 		{
+			StringBuilder temp(1024, "", 0);
+			int size = 1024;
+			
+			while (true) {
+				int chk = snprintf(temp.Str(), size, "%Lf", x);
+				if (!(0 <= chk && chk < size)) {
+					size = size * 2;
+					temp = StringBuilder(size, "", 0);
+				}
+				else {
+					temp.SetLength(chk);
+					break;
+				}
+			}
 
+			str->Assign(temp.Str());
+
+			return true;
 		}
 
 		bool SubString(WizString* result, int begin, int end)
@@ -558,131 +632,69 @@ namespace wiz {
 			if (len > WIZ_STRING_BUFFER_SIZE) { return str[0]; }
 			return buffer[0];
 		}
+	private:
+		bool comp(const char* x, const char* y, int n)
+		{
+			for (int i = 0; i < n; ++i) {
+				if (x[i] != y[i]) {
+					return false;
+				}
+			}
+			return true;
+		}
+	public:
+		bool Replace(const WizString& mark, const WizString& changed, WizString* result, StringBuilder* builder)
+		{
+			const char* pStr = this->CStr();
+
+			builder->Clear();
+
+			// chk??
+			if (mark.Empty()) {
+				return false;
+			}
+
+			for (int i = 0; i < this->Size(); i++) {
+				if (strlen(pStr + i) >= mark.Size()
+					&& comp(pStr + i, mark.CStr(), mark.Size()))
+				{
+					builder->Append(changed.CStr(), changed.Size());
+					i = i + mark.Size() - 1;
+				}
+				else
+				{
+					builder->AppendChar(this->CStr()[i]);
+				}
+			}
+
+			result->Assign(builder->Str());
+
+			return true;
+		}
+		void AddSpace(WizString* result, StringBuilder* builder)
+		{
+			builder->Clear();
+
+			for (int i = 0; i < this->Size(); ++i)
+			{
+				if ('=' == this->CStr()[i]) {
+					builder->Append(" = ", 3);
+				}
+				else if ('{' == this->CStr()[i]) {
+					builder->Append(" { ", 3);
+				}
+				else if ('}' == this->CStr()[i]) {
+					builder->Append(" } ", 3);
+				}
+				else {
+					builder->AppendChar(this->CStr()[i]);
+				}
+			}
+
+			result->Assign(builder->Str());
+		}
 	};
 }
 
 #endif
 
-// To Do
-/*
-// equal_WizString
-int equal_WizString(WizString* this, WizString* str)
-{
-	if (this->len != str->len) { return 0; }
-	return 0 == strcmp(CStr(this), CStr(str));
-}
-
-void add_space(WizString* str, WizString* temp, WizString_builder* builder)
-{
-	size_t i;
-	WizString  result;
-	clear_WizString_builder(builder);
-
-	for (i = 0; i < size_WizString(str); ++i)
-	{
-		if ('=' == str.CStr()[i]) {
-			append_WizString_builder(builder, " = ", 3);
-		}
-		else if ('{' == str.CStr()[i]) {
-			append_WizString_builder(builder, " { ", 3);
-		}
-		else if ('}' == str.CStr()[i]) {
-			append_WizString_builder(builder, " } ", 3);
-		}
-		else {
-			append_char_WizString_builder(builder, str.CStr()[i]);
-		}
-	}
-	init_WizString(&result, str_WizString_builder(builder, NULL), size_WizString_builder(builder));
-
-	assign_WizString(temp, &result);
-
-	free_WizString(&result);
-
-	//return temp;
-}
-
-WizString replace_WizString(WizString* origin, WizString* mark, WizString* changed, WizString_builder* builder)
-{
-	size_t i;
-	const char* pStr = CStr(origin);
-	WizString result;
-
-	clear_WizString_builder(builder);
-
-	// chk??
-	if (empty_WizString(mark)) {
-		init_WizString(&result, "", 0); // chk..
-		return result;
-	}
-
-	for (i = 0; i < size_WizString(origin); i++) {
-		if (strlen(pStr + i) >= size_WizString(mark)
-			&& comp(pStr + i, CStr(mark), size_WizString(mark)))
-		{
-			append_WizString_builder(builder, CStr(changed), size_WizString(changed));
-			i = i + size_WizString(mark) - 1;
-		}
-		else
-		{
-			append_char_WizString_builder(builder, CStr(origin)[i]);
-		}
-	}
-
-	init_WizString(&result, str_WizString_builder(builder, NULL), size_WizString_builder(builder));
-
-	return result;
-}
-
-WizString wiz_ll_to_string(long long x)
-{
-	WizString result;
-	WizString_builder temp;
-	int size = 1024;
-	init_WizString_builder(&temp, size, "", 0);
-
-	while (1) {
-		int chk = snprintf(str_WizString_builder(&temp, NULL), size, "%lld", x);
-		if (!(0 <= chk && chk < size)) {
-			size = size * 2;
-			free_WizString_builder(&temp);
-			init_WizString_builder(&temp, size, "", 0);
-		}
-		else {
-			temp.len = chk;
-			break;
-		}
-	}
-
-	init_WizString(&result, str_WizString_builder(&temp, NULL), size_WizString_builder(&temp));
-
-	free_WizString_builder(&temp);
-	return result;
-}
-WizString wiz_ld_to_string(long double x)
-{
-	WizString result;
-	WizString_builder temp;
-	int size = 1024;
-	init_WizString_builder(&temp, size, "", 0);
-
-	while (1) {
-		int chk = snprintf(str_WizString_builder(&temp, NULL), size, "%Lf", x);
-		if (!(0 <= chk && chk < size)) {
-			size = size * 2;
-			free_WizString_builder(&temp);
-			init_WizString_builder(&temp, size, "", 0);
-		}
-		else {
-			temp.len = chk;
-			break;
-		}
-	}
-
-	init_WizString(&result, str_WizString_builder(&temp, NULL), size_WizString_builder(&temp));
-
-	free_WizString_builder(&temp);
-	return result;
-}
-
-*/
